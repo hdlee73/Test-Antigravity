@@ -37,6 +37,7 @@ data class MainUiState(
     val statusMessage: String = "데이터를 불러오는 중...",
     val searchQuery: String = "",
     val etfs: List<EtfSummary> = SampleEtfCatalog.etfs,
+    val remoteSearchResults: List<EtfSummary> = emptyList(),
     val selectedEtfCode: String = "069500",
     val overlapCodeA: String = "091180",
     val overlapCodeB: String = "496120",
@@ -60,24 +61,26 @@ data class MainUiState(
         get() {
             val q = searchQuery.trim()
             if (q.isEmpty()) return etfs
-            return etfs.filter {
+            val localMatches = etfs.filter {
                 it.name.contains(q, ignoreCase = true) ||
                     it.code.contains(q, ignoreCase = true) ||
                     it.category.contains(q, ignoreCase = true)
             }
+            return (localMatches + remoteSearchResults).distinctBy { it.code }
         }
 }
 
 class EtfTrackerViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = AppPrefs(application)
     private val repository = EtfRepository(prefs)
+    private var searchJob: kotlinx.coroutines.Job? = null
 
     private val _uiState = MutableStateFlow(
         MainUiState(
             selectedEtfCode = prefs.selectedEtfCode,
             compareCodes = prefs.compareCodes,
-            apiBaseUrlInput = prefs.apiBaseUrl,
-            appTokenInput = prefs.appToken,
+            apiBaseUrlInput = "",
+            appTokenInput = "",
             crashLogText = CrashLogger.readLog(application),
         )
     )
@@ -124,11 +127,33 @@ class EtfTrackerViewModel(application: Application) : AndroidViewModel(applicati
 
     fun updateSearchQuery(query: String) {
         _uiState.update { it.copy(searchQuery = query) }
+        searchJob?.cancel()
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) {
+            _uiState.update { it.copy(remoteSearchResults = emptyList()) }
+            return
+        }
+        searchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(250)
+            val remote = repository.searchRemoteEtfs(trimmed)
+            _uiState.update { state ->
+                val mergedCatalog = (state.etfs + remote).distinctBy { it.code }
+                state.copy(etfs = mergedCatalog, remoteSearchResults = remote)
+            }
+        }
     }
 
     fun selectEtf(code: String) {
         prefs.selectedEtfCode = code
         _uiState.update { it.copy(selectedEtfCode = code) }
+        val target = _uiState.value.etfs.firstOrNull { it.code == code } ?: return
+        viewModelScope.launch {
+            val detailed = repository.loadEtfDetail(target)
+            _uiState.update { state ->
+                val updated = state.etfs.map { if (it.code == code) detailed else it }
+                state.copy(etfs = updated)
+            }
+        }
     }
 
     fun setOverlapPair(codeA: String, codeB: String) {

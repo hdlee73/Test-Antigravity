@@ -85,11 +85,93 @@ class EtfRepository(private val prefs: AppPrefs) {
             }.getOrElse { fallback }
         }
 
-        RepositorySnapshot(
+        return@withContext RepositorySnapshot(
             etfs = merged,
             newsImpacts = SampleEtfCatalog.newsImpacts,
             isServerConnected = true,
             statusMessage = "EveryCorp 서버 실시간 연동됨",
         )
+    }
+
+    suspend fun searchRemoteEtfs(query: String): List<EtfSummary> = withContext(Dispatchers.IO) {
+        val q = query.trim()
+        if (q.isEmpty() || prefs.apiBaseUrl.isBlank() || prefs.appToken.isBlank()) return@withContext emptyList()
+        return@withContext runCatching {
+            val api = NetworkModule.createApi(prefs)
+            val res = api.searchEtfs(q)
+            res.items.map { item ->
+                val existing = SampleEtfCatalog.etfs.firstOrNull { it.code == item.code }
+                existing ?: EtfSummary(
+                    code = item.code,
+                    name = item.name.ifBlank { item.code },
+                    manager = item.manager.ifBlank { "운용사 정보" },
+                    category = "국내 상장 ETF",
+                    isActive = item.name.contains("액티브"),
+                    marketPrice = item.close ?: 0L,
+                    iNav = item.nav ?: (item.close?.toDouble() ?: 0.0),
+                    dailyChangePct = 0.0,
+                    aumBillionWon = (item.netAssets ?: 0L) / 100_000_000L,
+                    tradingValueBillionWon = 0.0,
+                    lpAskQty = 0L,
+                    lpBidQty = 0L,
+                    terPct = 0.15,
+                    otherCostPct = 0.03,
+                    brokerageFeePct = 0.03,
+                    annualDividendYieldPct = 2.0,
+                    sharpeRatio = 0.9,
+                    mddPct = -15.0,
+                    trackingErrorPct = 0.2,
+                    holdings = emptyList(),
+                    rocBreakdown = io.github.hdlee73.etftracker.domain.model.RocBreakdown(90.0, 0.0, 10.0),
+                    dailyPrices = listOf(100.0, 101.0, 102.0),
+                    benchmarkPrices = listOf(100.0, 101.0, 102.0),
+                )
+            }
+        }.onFailure { err ->
+            CrashLogger.logWarning("EtfRepository.search", "ETF 검색 실패 ($q): ${err.message}")
+        }.getOrDefault(emptyList())
+    }
+
+    suspend fun loadEtfDetail(existing: EtfSummary): EtfSummary = withContext(Dispatchers.IO) {
+        if (prefs.apiBaseUrl.isBlank() || prefs.appToken.isBlank()) return@withContext existing
+        return@withContext runCatching {
+            val api = NetworkModule.createApi(prefs)
+            val basics = api.getEtfBasics(existing.code)
+            val portfolio = api.getEtfPortfolio(existing.code)
+            val stats = api.getEtfStats(existing.code)
+            val latestClose = stats.close.lastOrNull { it != null } ?: existing.marketPrice
+            val latestNav = basics.navKrx ?: stats.nav.lastOrNull { it != null } ?: existing.iNav
+            val liveHoldings = if (portfolio.holdings.isNotEmpty()) {
+                portfolio.holdings.take(10).map { dto ->
+                    val prevMatch = existing.holdings.find { it.code == dto.code }
+                    PdfHolding(
+                        code = dto.code.ifBlank { dto.stockCode.orEmpty() }.ifBlank { dto.name },
+                        name = dto.displayName,
+                        weightPct = dto.weight ?: prevMatch?.weightPct ?: 0.0,
+                        prevWeightPct = prevMatch?.prevWeightPct ?: (dto.weight ?: 0.0),
+                        shareCount = dto.qty?.toLong() ?: prevMatch?.shareCount ?: 0L,
+                        prevShareCount = prevMatch?.prevShareCount ?: (dto.qty?.toLong() ?: 0L),
+                        dailyReturnPct = prevMatch?.dailyReturnPct ?: 0.0,
+                    )
+                }
+            } else {
+                existing.holdings
+            }
+            val closes = stats.close.filterNotNull().takeLast(12).map { it.toDouble() }
+            val navs = stats.nav.filterNotNull().takeLast(12)
+            existing.copy(
+                manager = basics.manager.ifBlank { existing.manager },
+                category = basics.assetClass.ifBlank { existing.category },
+                marketPrice = latestClose,
+                iNav = latestNav,
+                terPct = basics.totalFee ?: existing.terPct,
+                aumBillionWon = basics.netAssets?.div(100_000_000L) ?: existing.aumBillionWon,
+                holdings = liveHoldings,
+                dailyPrices = if (closes.size >= 3) closes else existing.dailyPrices,
+                benchmarkPrices = if (navs.size >= 3) navs else existing.benchmarkPrices,
+            )
+        }.onFailure { err ->
+            CrashLogger.logWarning("EtfRepository.detail", "ETF 상세 조회 실패 (${existing.code}): ${err.message}")
+        }.getOrDefault(existing)
     }
 }
