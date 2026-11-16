@@ -172,6 +172,11 @@ fun AppInfoScreen(
                 Text("EveryCorp 백엔드 서버 연동", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(6.dp))
                 Text(state.statusMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = "보안을 위해 서버 토큰은 APK에 포함되지 않으며, 기기 내 Android Keystore(AES-256)로 암호화 저장됩니다.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = WealthColors.ChampagneGold,
+                )
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(
                     value = urlInput,
@@ -181,11 +186,22 @@ fun AppInfoScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(8.dp))
+                var showToken by rememberSaveable { mutableStateOf(false) }
                 OutlinedTextField(
                     value = tokenInput,
                     onValueChange = { tokenInput = it },
-                    label = { Text("X-App-Token") },
+                    label = { Text("X-App-Token (직접 입력)") },
                     singleLine = true,
+                    visualTransformation = if (showToken) {
+                        androidx.compose.ui.text.input.VisualTransformation.None
+                    } else {
+                        androidx.compose.ui.text.input.PasswordVisualTransformation()
+                    },
+                    trailingIcon = {
+                        androidx.compose.material3.TextButton(onClick = { showToken = !showToken }) {
+                            Text(if (showToken) "숨김" else "보기")
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(10.dp))

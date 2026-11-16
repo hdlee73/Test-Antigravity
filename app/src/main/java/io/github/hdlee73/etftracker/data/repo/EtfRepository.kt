@@ -21,6 +21,16 @@ class EtfRepository(private val prefs: AppPrefs) {
     suspend fun loadInitialData(): RepositorySnapshot = withContext(Dispatchers.IO) {
         val baseList = SampleEtfCatalog.etfs
         val baseUrl = prefs.apiBaseUrl
+        val token = prefs.appToken
+
+        if (baseUrl.isBlank() || token.isBlank()) {
+            return@withContext RepositorySnapshot(
+                etfs = baseList,
+                newsImpacts = SampleEtfCatalog.newsImpacts,
+                isServerConnected = false,
+                statusMessage = "로컬 정밀 분석 모드 (앱 정보 · 설정에서 서버 URL 및 토큰 입력 시 실시간 연동)",
+            )
+        }
 
         // 로컬 에뮬레이터 기본값 그대로이거나 미설정이면 서버 연결 시도 후 안전하게 폴백
         val serverHealthy = runCatching {
