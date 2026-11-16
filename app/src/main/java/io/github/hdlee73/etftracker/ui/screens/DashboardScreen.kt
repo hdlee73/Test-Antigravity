@@ -61,6 +61,12 @@ fun DashboardScreen(
 ) {
     val selected = state.selectedEtf
     val alertLevel = EtfAnalyticsEngine.evaluateDiscrepancy(selected)
+    val selectedSignal = androidx.compose.runtime.remember(selected) {
+        EtfAnalyticsEngine.generateTradingSignal(selected)
+    }
+    val allSignals = androidx.compose.runtime.remember(state.etfs) {
+        state.etfs.map { EtfAnalyticsEngine.generateTradingSignal(it) }.sortedByDescending { it.totalScore }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -168,6 +174,18 @@ fun DashboardScreen(
                     }
                 }
             }
+        }
+
+        item {
+            TradingSignalCard(signal = selectedSignal)
+        }
+
+        item {
+            AllSignalsScannerCard(
+                signals = allSignals,
+                selectedCode = selected.code,
+                onSelectEtf = onSelectEtf,
+            )
         }
 
         item {
@@ -328,6 +346,126 @@ private fun ModuleShortcutCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TradingSignalCard(signal: io.github.hdlee73.etftracker.domain.model.TradingSignalResult) {
+    val grade = signal.grade
+    val (bg, fg) = when (grade) {
+        io.github.hdlee73.etftracker.domain.model.TradingSignalGrade.STRONG_BUY,
+        io.github.hdlee73.etftracker.domain.model.TradingSignalGrade.BUY ->
+            WealthColors.EmeraldContainer to WealthColors.ForestEmerald
+        io.github.hdlee73.etftracker.domain.model.TradingSignalGrade.HOLD ->
+            WealthColors.ChampagneContainer to WealthColors.ChampagneGold
+        io.github.hdlee73.etftracker.domain.model.TradingSignalGrade.TRIM,
+        io.github.hdlee73.etftracker.domain.model.TradingSignalGrade.SELL ->
+            WealthColors.CrimsonContainer to WealthColors.DeepCrimson
+    }
+
+    EditorialCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "AI 매매 시그널 브리핑",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = WealthColors.ChampagneGold,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "${signal.name} · ${signal.totalScore}점 / 100",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+            }
+            StatusPill(text = grade.label, containerColor = bg, contentColor = fg)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = signal.targetActionText,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.height(10.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            signal.factors.forEach { factor ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(factor.name, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Text(factor.summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(
+                        text = "${factor.score}점",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = WealthColors.ClassicNavy,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AllSignalsScannerCard(
+    signals: List<io.github.hdlee73.etftracker.domain.model.TradingSignalResult>,
+    selectedCode: String,
+    onSelectEtf: (String) -> Unit,
+) {
+    EditorialCard {
+        Text("전체 관심 ETF 매매 시그널 스캐너", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "매매 점수가 높은 순서대로 정렬됩니다. 종목을 탭하면 상세 시그널을 확인합니다.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            signals.forEach { item ->
+                val isCurrent = item.code == selectedCode
+                val (bg, fg) = when (item.grade) {
+                    io.github.hdlee73.etftracker.domain.model.TradingSignalGrade.STRONG_BUY,
+                    io.github.hdlee73.etftracker.domain.model.TradingSignalGrade.BUY ->
+                        WealthColors.EmeraldContainer to WealthColors.ForestEmerald
+                    io.github.hdlee73.etftracker.domain.model.TradingSignalGrade.HOLD ->
+                        WealthColors.ChampagneContainer to WealthColors.ChampagneGold
+                    io.github.hdlee73.etftracker.domain.model.TradingSignalGrade.TRIM,
+                    io.github.hdlee73.etftracker.domain.model.TradingSignalGrade.SELL ->
+                        WealthColors.CrimsonContainer to WealthColors.DeepCrimson
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelectEtf(item.code) }
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = (if (isCurrent) "▶ " else "") + item.name,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                        )
+                        Text(
+                            text = "종합 ${item.totalScore}점",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    StatusPill(text = item.grade.label, containerColor = bg, contentColor = fg)
+                }
             }
         }
     }

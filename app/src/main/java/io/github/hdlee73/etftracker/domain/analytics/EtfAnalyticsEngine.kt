@@ -12,7 +12,10 @@ import io.github.hdlee73.etftracker.domain.model.OverlapHoldingItem
 import io.github.hdlee73.etftracker.domain.model.PdfHolding
 import io.github.hdlee73.etftracker.domain.model.RebalanceAction
 import io.github.hdlee73.etftracker.domain.model.RebalanceEvent
+import io.github.hdlee73.etftracker.domain.model.SignalFactor
 import io.github.hdlee73.etftracker.domain.model.StressTestRow
+import io.github.hdlee73.etftracker.domain.model.TradingSignalGrade
+import io.github.hdlee73.etftracker.domain.model.TradingSignalResult
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToLong
@@ -282,6 +285,91 @@ object EtfAnalyticsEngine {
             }
         }
         return CorrelationMatrix(labels = labels, values = matrix)
+    }
+
+    fun generateTradingSignal(etf: EtfSummary): TradingSignalResult {
+        // 1. 가격 추세·모멘텀 (0~30점)
+        val prices = etf.dailyPrices
+        val trendScore = if (prices.size >= 4) {
+            val recent = prices.takeLast(4)
+            val shortSlope = (recent.last() - recent.first()) / recent.first().coerceAtLeast(1.0)
+            val fullSlope = (prices.last() - prices.first()) / prices.first().coerceAtLeast(1.0)
+            val raw = 15 + (shortSlope * 140).toInt() + (fullSlope * 45).toInt()
+            raw.coerceIn(0, 30)
+        } else {
+            15
+        }
+        val trendSummary = when {
+            trendScore >= 22 -> "단기·중기 상승 추세 견조"
+            trendScore >= 14 -> "완만한 횡보 · 박스권 흐름"
+            else -> "단기 하락 압력 우세"
+        }
+
+        // 2. iNAV 괴리율 · LP 유동성 (0~25점)
+        val disc = etf.discrepancyPct
+        val lpOk = minOf(etf.lpAskQty, etf.lpBidQty) >= 500L || (etf.lpAskQty == 0L && etf.lpBidQty == 0L)
+        val discScore = when {
+            disc <= -0.15 && lpOk -> 24
+            abs(disc) < 0.30 && lpOk -> 19
+            disc >= 0.60 || !lpOk -> 5
+            else -> 12
+        }
+        val discSummary = when {
+            disc <= -0.15 && lpOk -> "iNAV 대비 할인 거래 (저가 매수 유리)"
+            !lpOk -> "LP 호가 잔량 부족 · 체결 주의"
+            disc >= 0.40 -> "iNAV 대비 할증 과열 (추격 매수 비권장)"
+            else -> "실시간 iNAV 괴리율 안정권"
+        }
+
+        // 3. PDF 구성종목 기여도 · 리밸런싱 수급 (0~25점)
+        val netContribution = etf.holdings.sumOf { it.contributionPctPoint }
+        val rebalNet = etf.holdings.sumOf { it.weightDeltaPct }
+        val pdfScore = (13 + (netContribution * 12).toInt() + (rebalNet * 4).toInt()).coerceIn(0, 25)
+        val pdfSummary = when {
+            netContribution >= 0.4 -> "상위 편입종목 동반 강세 (+${String.format("%.2f", netContribution)}%p)"
+            netContribution <= -0.3 -> "핵심 구성종목 약세로 하방 압력"
+            else -> "구성종목 수급 중립"
+        }
+
+        // 4. 효율·리스크 보정 (샤프·실부담비용·ROC, 0~20점)
+        val sharpePart = (etf.sharpeRatio * 10).toInt().coerceIn(0, 12)
+        val costPenalty = if (etf.realCostPct > 0.45) -2 else 4
+        val rocPenalty = if (etf.rocBreakdown.isPrincipalErosionRisk) -3 else 4
+        val riskScore = (sharpePart + costPenalty + rocPenalty).coerceIn(0, 20)
+        val riskSummary = buildString {
+            append("샤프 ${String.format("%.2f", etf.sharpeRatio)} · 비용 ${String.format("%.2f", etf.realCostPct)}%")
+            if (etf.rocBreakdown.isPrincipalErosionRisk) append(" · ROC 원금잠식 유의")
+        }
+
+        val total = (trendScore + discScore + pdfScore + riskScore).coerceIn(0, 100)
+        val grade = when {
+            total >= 76 -> TradingSignalGrade.STRONG_BUY
+            total >= 62 -> TradingSignalGrade.BUY
+            total >= 45 -> TradingSignalGrade.HOLD
+            total >= 32 -> TradingSignalGrade.TRIM
+            else -> TradingSignalGrade.SELL
+        }
+        val actionText = when (grade) {
+            TradingSignalGrade.STRONG_BUY -> "추세·PDF 수급·괴리율 모두 우호적입니다. 적극 비중 확대를 고려하세요."
+            TradingSignalGrade.BUY -> "전반적인 가격 모멘텀이 양호합니다. 분할 매수 진입 구간입니다."
+            TradingSignalGrade.HOLD -> "뚜렷한 방향성보다 횡보/혼조 신호입니다. 기존 비중 유지를 권장합니다."
+            TradingSignalGrade.TRIM -> "할증 과열 또는 모멘텀 둔화가 감지되었습니다. 일부 차익 실현을 권장합니다."
+            TradingSignalGrade.SELL -> "하락 추세 및 수급 약화 신호입니다. 비중 축소 및 리스크 관리가 필요합니다."
+        }
+
+        return TradingSignalResult(
+            code = etf.code,
+            name = etf.name,
+            grade = grade,
+            totalScore = total,
+            targetActionText = actionText,
+            factors = listOf(
+                SignalFactor("추세·모멘텀 (30)", trendScore, trendSummary),
+                SignalFactor("iNAV·유동성 (25)", discScore, discSummary),
+                SignalFactor("PDF 수급·기여 (25)", pdfScore, pdfSummary),
+                SignalFactor("위험·비용 효율 (20)", riskScore, riskSummary),
+            ),
+        )
     }
 
     private fun pearson(x: List<Double>, y: List<Double>): Double {

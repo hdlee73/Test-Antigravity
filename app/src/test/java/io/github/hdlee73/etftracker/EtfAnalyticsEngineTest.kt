@@ -71,4 +71,12 @@ class EtfAnalyticsEngineTest {
         assertFalse(UpdateChecker.isNewerVersion("1.0.0", "1.0.0"))
         assertFalse(UpdateChecker.isNewerVersion("0.9.9", "1.0.0"))
     }
+
+    @Test
+    fun generateTradingSignal_returnsValidScoreAndFactors() {
+        val sp500 = SampleEtfCatalog.etfs.first { it.code == "360750" }
+        val signal = EtfAnalyticsEngine.generateTradingSignal(sp500)
+        assertTrue(signal.totalScore in 0..100)
+        assertEquals(4, signal.factors.size)
+    }
 }

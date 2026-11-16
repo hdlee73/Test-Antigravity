@@ -169,3 +169,28 @@ data class CorrelationMatrix(
     val labels: List<String>,
     val values: List<List<Double>>,
 )
+
+enum class TradingSignalGrade(val label: String) {
+    STRONG_BUY("강력 매수"),
+    BUY("분할 매수"),
+    HOLD("관망 · 보유"),
+    TRIM("분할 매도"),
+    SELL("비중 축소"),
+}
+
+@Immutable
+data class SignalFactor(
+    val name: String,
+    val score: Int,
+    val summary: String,
+)
+
+@Immutable
+data class TradingSignalResult(
+    val code: String,
+    val name: String,
+    val grade: TradingSignalGrade,
+    val totalScore: Int,
+    val targetActionText: String,
+    val factors: List<SignalFactor>,
+)
