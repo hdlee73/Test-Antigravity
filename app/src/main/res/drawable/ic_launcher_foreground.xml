@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Base baseline -->
+    <path
+        android:pathData="M28,74 L80,74"
+        android:strokeWidth="2.4"
+        android:strokeColor="#C2CFC8"
+        android:strokeLineCap="round" />
+
+    <!-- Forest Green Ascending 4-Bar Chart -->
+    <path
+        android:fillColor="#2D7A55"
+        android:pathData="M31,60 L39,60 L39,72 L31,72 Z" />
+    <path
+        android:fillColor="#236B48"
+        android:pathData="M43,51 L51,51 L51,72 L43,72 Z" />
+    <path
+        android:fillColor="#1B5E3F"
+        android:pathData="M55,42 L63,42 L63,72 L55,72 Z" />
+    <path
+        android:fillColor="#144D32"
+        android:pathData="M67,32 L75,32 L75,72 L67,72 Z" />
+
+    <!-- Crisp Upward Trend Line -->
+    <path
+        android:pathData="M31,52 L47,42 L59,35 L76,25"
+        android:strokeWidth="3.2"
+        android:strokeColor="#145335"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+
+    <!-- Accent Gold Peak Node -->
+    <path
+        android:fillColor="#B8924A"
+        android:pathData="M76,25 m-3.6,0 a3.6,3.6 0 1,0 7.2,0 a3.6,3.6 0 1,0 -7.2,0" />
+</vector>

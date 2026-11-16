@@ -1,0 +1,30 @@
+# Build outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+.gradle/
+build/
+app/build/
+captures/
+output.json
+
+# IDE & OS
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Signing & Secrets (NEVER commit)
+*.jks
+*.keystore
+*.p12
+*.pem
+local.properties
+.env
+.env.*
+!.env.example
+secrets/
+
+# Logs
+*.log

@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.EtfTracker" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#FAF7F2</item>
+        <item name="android:navigationBarColor">#FAF7F2</item>
+    </style>
+</resources>
