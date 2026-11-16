@@ -510,9 +510,9 @@ object EtfAnalyticsEngine {
      */
     fun evaluateHoldingSellSignal(
         position: HoldingPosition,
-        etf: EtfSummary,
+        etf: EtfSummary?,
     ): HoldingSellSignal {
-        val currentPrice = etf.marketPrice.coerceAtLeast(1L)
+        val currentPrice = (etf?.marketPrice ?: position.avgBuyPrice).coerceAtLeast(1L)
         val avgBuy = position.avgBuyPrice.coerceAtLeast(1L)
         val qty = position.quantity.coerceAtLeast(1)
         val highest = maxOf(position.highestPriceSinceBuy, currentPrice, avgBuy)
@@ -521,8 +521,23 @@ object EtfAnalyticsEngine {
         val pnlAmountWon = (currentPrice - avgBuy) * qty.toLong()
         val drawdownFromHighPct = ((currentPrice - highest).toDouble() / highest) * 100.0
 
-        val marketSignal = generateTradingSignal(etf)
-        val hist = marketSignal.history
+        val marketSignal = etf?.let { generateTradingSignal(it) }
+        val hist = marketSignal?.history ?: TechnicalHistoryAnalysis(
+            rsi14 = 50.0,
+            ma5 = currentPrice.toDouble(),
+            ma20 = currentPrice.toDouble(),
+            ma60 = currentPrice.toDouble(),
+            return1M = pnlPct,
+            return3M = pnlPct,
+            return6M = pnlPct,
+            volatilityPct = 16.0,
+            mddPct = -8.0,
+            trendStatus = "중립 구간",
+            winRatePct = 55.0,
+            signalBacktestReturnPct = pnlPct,
+        )
+        val totalScore = marketSignal?.totalScore ?: 55
+        val discrepancyPct = etf?.discrepancyPct ?: 0.0
 
         val nextTargetPrice = (avgBuy * (1.0 + position.targetProfitPct / 100.0)).roundToLong()
         val stopLossPrice = (avgBuy * (1.0 + position.stopLossPct / 100.0)).roundToLong()
@@ -546,7 +561,7 @@ object EtfAnalyticsEngine {
             )
 
             // 2. 목표 수익률 달성 + 모멘텀 둔화/과열 → 전량 또는 대폭 익절
-            pnlPct >= position.targetProfitPct && (hist.rsi14 >= 68.0 || marketSignal.totalScore < 58) -> HoldingSellSignal(
+            pnlPct >= position.targetProfitPct && (hist.rsi14 >= 68.0 || totalScore < 58) -> HoldingSellSignal(
                 position = position,
                 currentPrice = currentPrice,
                 pnlPct = pnlPct,
@@ -578,7 +593,7 @@ object EtfAnalyticsEngine {
             )
 
             // 4. 수익 구간에서 고점 대비 -4.5% 이상 꺾임 OR 역배열 전환 → 추세이탈 매도
-            (pnlPct > 2.0 && drawdownFromHighPct <= -4.5) || marketSignal.grade == TradingSignalGrade.SELL -> HoldingSellSignal(
+            (pnlPct > 2.0 && drawdownFromHighPct <= -4.5) || marketSignal?.grade == TradingSignalGrade.SELL -> HoldingSellSignal(
                 position = position,
                 currentPrice = currentPrice,
                 pnlPct = pnlPct,
@@ -590,11 +605,11 @@ object EtfAnalyticsEngine {
                 nextTrailingStopPrice = trailingStopPrice,
                 nextTargetPrice = nextTargetPrice,
                 headline = "고점 대비 ${formatPct(drawdownFromHighPct)} 하락 · 추세 이탈 매도 시그널",
-                reasonDetail = "수익 반납을 막기 위한 트레일링 스탑 구간(시그널 ${marketSignal.totalScore}점)입니다. 80% 이상 매도해 이익을 보전하세요.",
+                reasonDetail = "수익 반납을 막기 위한 트레일링 스탑 구간(시그널 ${totalScore}점)입니다. 80% 이상 매도해 이익을 보전하세요.",
             )
 
             // 5. iNAV 할증 과열
-            etf.discrepancyPct >= 0.50 -> HoldingSellSignal(
+            discrepancyPct >= 0.50 -> HoldingSellSignal(
                 position = position,
                 currentPrice = currentPrice,
                 pnlPct = pnlPct,
@@ -605,12 +620,12 @@ object EtfAnalyticsEngine {
                 recommendedSellRatioPct = 40,
                 nextTrailingStopPrice = trailingStopPrice,
                 nextTargetPrice = nextTargetPrice,
-                headline = "실시간 iNAV 대비 +${String.format(Locale.US, "%.2f", etf.discrepancyPct)}% 비싸게 거래 중 · 단기 매도 찬스",
+                headline = "실시간 iNAV 대비 +${String.format(Locale.US, "%.2f", discrepancyPct)}% 비싸게 거래 중 · 단기 매도 찬스",
                 reasonDetail = "본질가치(iNAV)보다 시장가가 과도하게 할증된 상태입니다. 고가에 40% 분할 매도 후 괴리율 정상화 시 재매수하면 유리합니다.",
             )
 
             // 6. 소폭 조정 중이나 시그널 점수 우수 → 눌림목 추가 매수
-            pnlPct in -4.5..-1.0 && marketSignal.totalScore >= 68 -> HoldingSellSignal(
+            pnlPct in -4.5..-1.0 && totalScore >= 68 -> HoldingSellSignal(
                 position = position,
                 currentPrice = currentPrice,
                 pnlPct = pnlPct,
@@ -622,7 +637,7 @@ object EtfAnalyticsEngine {
                 nextTrailingStopPrice = stopLossPrice,
                 nextTargetPrice = nextTargetPrice,
                 headline = "강세 추세 내 단기 눌림목 · 평단가 낮추기(추가 매수) 적합",
-                reasonDetail = "시그널 점수(${marketSignal.totalScore}점)와 PDF 수급이 견조합니다. 매도하지 말고 분할 추가 매수로 목표가 도달을 노리세요.",
+                reasonDetail = "시그널 점수(${totalScore}점)와 PDF 수급이 견조합니다. 매도하지 말고 분할 추가 매수로 목표가 도달을 노리세요.",
             )
 
             // 7. 기본 보유 유지
@@ -638,7 +653,7 @@ object EtfAnalyticsEngine {
                 nextTrailingStopPrice = maxOf(stopLossPrice, trailingStopPrice),
                 nextTargetPrice = nextTargetPrice,
                 headline = "추세 순항 중 · 목표가(${formatWonPlain(nextTargetPrice)})까지 보유 유지",
-                reasonDetail = "현재 수익률 ${formatPct(pnlPct)}, 시그널 ${marketSignal.totalScore}점입니다. 손절/익절 기준선이 지켜지고 있으니 흔들리지 말고 보유하세요.",
+                reasonDetail = "현재 수익률 ${formatPct(pnlPct)}, 시그널 ${totalScore}점입니다. 손절/익절 기준선이 지켜지고 있으니 흔들리지 말고 보유하세요.",
             )
         }
     }
