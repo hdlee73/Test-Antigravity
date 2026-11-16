@@ -164,9 +164,9 @@ class EtfTrackerViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun saveServerConfig(url: String, token: String) {
-        prefs.apiBaseUrl = url
-        prefs.appToken = token
-        _uiState.update { it.copy(apiBaseUrlInput = prefs.apiBaseUrl, appTokenInput = prefs.appToken) }
+        if (url.isNotBlank()) prefs.apiBaseUrl = url
+        if (token.isNotBlank()) prefs.appToken = token
+        _uiState.update { it.copy(apiBaseUrlInput = "", appTokenInput = "") }
         refreshData()
     }
 

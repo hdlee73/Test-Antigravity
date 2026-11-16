@@ -173,7 +173,7 @@ fun AppInfoScreen(
                 Spacer(Modifier.height(6.dp))
                 Text(state.statusMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    text = "보안을 위해 서버 토큰은 APK에 포함되지 않으며, 기기 내 Android Keystore(AES-256)로 암호화 저장됩니다.",
+                    text = "보안을 위해 현재 적용 중인 서버 URL과 토큰은 화면에 표시하지 않습니다. 변경이 필요할 때만 아래에 새로 입력하세요.",
                     style = MaterialTheme.typography.bodySmall,
                     color = WealthColors.ChampagneGold,
                 )
@@ -181,7 +181,7 @@ fun AppInfoScreen(
                 OutlinedTextField(
                     value = urlInput,
                     onValueChange = { urlInput = it },
-                    label = { Text("EveryCorp API Base URL (예: https://everycorp-hd.duckdns.org)") },
+                    label = { Text("새 서버 URL (비워두면 기존 값 유지)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -190,7 +190,7 @@ fun AppInfoScreen(
                 OutlinedTextField(
                     value = tokenInput,
                     onValueChange = { tokenInput = it },
-                    label = { Text("X-App-Token (직접 입력)") },
+                    label = { Text("새 X-App-Token (비워두면 기존 값 유지)") },
                     singleLine = true,
                     visualTransformation = if (showToken) {
                         androidx.compose.ui.text.input.VisualTransformation.None
@@ -206,7 +206,11 @@ fun AppInfoScreen(
                 )
                 Spacer(Modifier.height(10.dp))
                 Button(
-                    onClick = { onSaveServerConfig(urlInput, tokenInput) },
+                    onClick = {
+                        onSaveServerConfig(urlInput, tokenInput)
+                        urlInput = ""
+                        tokenInput = ""
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = WealthColors.ClassicNavy),
                 ) {
                     Text("서버 설정 저장 및 재연동")

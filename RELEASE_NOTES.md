@@ -1,5 +1,5 @@
-## ETF Tracker v1.0.2
+## ETF Tracker v1.0.3
 
 ### 변경 사항
-- **GitHub Secrets 자동 주입**: 빌드 시 `API_BASE_URL` 및 `APP_TOKEN`을 자동 주입하여, 앱 설치 후 별도 입력 없이 즉시 `EveryCorp` 서버와 연동됩니다.
-- 앱 내 **앱 정보 · 설정**에서 직접 서버 URL/토큰을 변경해 덮어쓸 수도 있으며, 수동 입력 시 **Android Keystore(AES-256-GCM)**로 암호화 저장됩니다.
+- **화면 노출 차단**: 타인이 앱 화면을 보더라도 서버 URL과 `X-App-Token`을 확인할 수 없도록 **앱 정보 · 설정 입력칸 및 상태 메시지에서 기존 URL·토큰 표시를 제거**했습니다.
+- 변경이 필요할 때만 새 값을 입력해 덮어쓸 수 있으며, 비워두면 GitHub Secrets/Variables로 주입된 기본값이 그대로 유지됩니다.

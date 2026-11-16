@@ -89,7 +89,7 @@ class EtfRepository(private val prefs: AppPrefs) {
             etfs = merged,
             newsImpacts = SampleEtfCatalog.newsImpacts,
             isServerConnected = true,
-            statusMessage = "EveryCorp 서버 실시간 연동됨 ($baseUrl)",
+            statusMessage = "EveryCorp 서버 실시간 연동됨",
         )
     }
 }
