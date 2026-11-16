@@ -59,6 +59,10 @@ class AppPrefs(context: Context) {
             .ifEmpty { listOf("069500", "360750", "458730") }
         set(value) = prefs.edit().putString(KEY_COMPARE_CODES, value.take(4).joinToString(",")).apply()
 
+    var removedEtfCodes: Set<String>
+        get() = prefs.getStringSet(KEY_REMOVED_ETFS, emptySet()).orEmpty()
+        set(value) = prefs.edit().putStringSet(KEY_REMOVED_ETFS, value).apply()
+
     private fun getOrCreateKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
         (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
@@ -110,5 +114,6 @@ class AppPrefs(context: Context) {
         private const val KEY_APP_TOKEN_IV = "app_token_iv"
         private const val KEY_SELECTED_ETF = "selected_etf"
         private const val KEY_COMPARE_CODES = "compare_codes"
+        private const val KEY_REMOVED_ETFS = "removed_etfs"
     }
 }

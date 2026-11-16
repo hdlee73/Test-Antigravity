@@ -156,6 +156,25 @@ class EtfTrackerViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun removeEtf(code: String) {
+        _uiState.update { state ->
+            if (state.etfs.size <= 1) return@update state
+            val remaining = state.etfs.filterNot { it.code == code }
+            if (remaining.isEmpty()) return@update state
+            prefs.removedEtfCodes = prefs.removedEtfCodes + code
+            val nextSelected = if (state.selectedEtfCode == code) remaining.first().code else state.selectedEtfCode
+            prefs.selectedEtfCode = nextSelected
+            val nextCompare = state.compareCodes.filterNot { it == code }.ifEmpty { listOf(nextSelected) }
+            prefs.compareCodes = nextCompare
+            state.copy(
+                etfs = remaining,
+                remoteSearchResults = state.remoteSearchResults.filterNot { it.code == code },
+                selectedEtfCode = nextSelected,
+                compareCodes = nextCompare,
+            )
+        }
+    }
+
     fun setOverlapPair(codeA: String, codeB: String) {
         _uiState.update { it.copy(overlapCodeA = codeA, overlapCodeB = codeB) }
     }

@@ -18,12 +18,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Analytics
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CompareArrows
 import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -35,6 +37,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
 import io.github.hdlee73.etftracker.domain.analytics.EtfAnalyticsEngine
 import io.github.hdlee73.etftracker.domain.model.DiscrepancyAlertLevel
 import io.github.hdlee73.etftracker.domain.model.EtfSummary
@@ -53,6 +56,7 @@ fun DashboardScreen(
     state: MainUiState,
     onSearchChange: (String) -> Unit,
     onSelectEtf: (String) -> Unit,
+    onRemoveEtf: (String) -> Unit,
     onNavigate: (AppRoute) -> Unit,
 ) {
     val selected = state.selectedEtf
@@ -78,6 +82,13 @@ fun DashboardScreen(
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("ETF 종목명, 코드(예: 069500) 또는 테마 검색") },
                 leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (state.searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { onSearchChange("") }) {
+                            Icon(Icons.Outlined.Close, contentDescription = "검색어 지우기")
+                        }
+                    }
+                },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
             )
@@ -111,16 +122,33 @@ fun DashboardScreen(
                                     style = MaterialTheme.typography.labelMedium,
                                     color = if (isSelected) WealthColors.ChampagneGold else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                                Text(
-                                    text = formatSignedPct(etf.dailyChangePct),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = when {
-                                        isSelected -> WealthColors.ChampagneContainer
-                                        etf.dailyChangePct >= 0 -> WealthColors.ForestEmerald
-                                        else -> WealthColors.DeepCrimson
-                                    },
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = formatSignedPct(etf.dailyChangePct),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = when {
+                                            isSelected -> WealthColors.ChampagneContainer
+                                            etf.dailyChangePct >= 0 -> WealthColors.ForestEmerald
+                                            else -> WealthColors.DeepCrimson
+                                        },
+                                    )
+                                    if (state.etfs.size > 1) {
+                                        Spacer(Modifier.width(6.dp))
+                                        Icon(
+                                            imageVector = Icons.Outlined.Close,
+                                            contentDescription = "종목 삭제",
+                                            tint = if (isSelected) {
+                                                MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .clickable { onRemoveEtf(etf.code) },
+                                        )
+                                    }
+                                }
                             }
                             Spacer(Modifier.height(6.dp))
                             Text(
