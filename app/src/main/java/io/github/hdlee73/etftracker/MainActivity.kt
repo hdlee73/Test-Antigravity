@@ -180,7 +180,11 @@ fun EtfTrackerRoot(viewModel: EtfTrackerViewModel = viewModel()) {
                             state = state,
                             onSearchChange = viewModel::updateSearchQuery,
                             onSelectEtf = viewModel::selectEtf,
+                            onAddWatchlist = viewModel::addEtfToWatchlist,
                             onRemoveEtf = viewModel::removeEtf,
+                            onUpsertHolding = viewModel::upsertHoldingPosition,
+                            onRemoveHolding = viewModel::removeHoldingPosition,
+                            onClearBanner = viewModel::clearBannerMessage,
                             onNavigate = viewModel::navigateTo,
                         )
                         AppRoute.PDF_XRAY -> PdfXRayScreen(

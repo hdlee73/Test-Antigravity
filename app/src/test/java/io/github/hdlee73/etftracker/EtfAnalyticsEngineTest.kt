@@ -4,6 +4,8 @@ import io.github.hdlee73.etftracker.data.repo.SampleEtfCatalog
 import io.github.hdlee73.etftracker.data.update.UpdateChecker
 import io.github.hdlee73.etftracker.domain.analytics.EtfAnalyticsEngine
 import io.github.hdlee73.etftracker.domain.model.DiscrepancyAlertLevel
+import io.github.hdlee73.etftracker.domain.model.ExitActionType
+import io.github.hdlee73.etftracker.domain.model.HoldingPosition
 import io.github.hdlee73.etftracker.domain.model.RebalanceAction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -73,10 +75,54 @@ class EtfAnalyticsEngineTest {
     }
 
     @Test
-    fun generateTradingSignal_returnsValidScoreAndFactors() {
+    fun generateTradingSignal_differentiatesScoresAcrossCatalog() {
+        val signals = SampleEtfCatalog.etfs.map { EtfAnalyticsEngine.generateTradingSignal(it) }
+        val maxScore = signals.maxOf { it.totalScore }
+        val minScore = signals.minOf { it.totalScore }
+        val distinctScores = signals.map { it.totalScore }.distinct().size
+        assertTrue("Expected wide score spread (>=30), got ${maxScore - minScore}", (maxScore - minScore) >= 30)
+        assertTrue("Expected at least 5 distinct scores, got $distinctScores", distinctScores >= 5)
+        assertTrue(signals.all { it.entryPriceWon > 0 && it.targetPriceWon > 0 && it.stopLossPriceWon > 0 })
+    }
+
+    @Test
+    fun evaluateHoldingSellSignal_detectsTakeProfitAndStopLoss() {
         val sp500 = SampleEtfCatalog.etfs.first { it.code == "360750" }
-        val signal = EtfAnalyticsEngine.generateTradingSignal(sp500)
-        assertTrue(signal.totalScore in 0..100)
-        assertEquals(4, signal.factors.size)
+        val profitPos = HoldingPosition(
+            code = sp500.code,
+            name = sp500.name,
+            avgBuyPrice = (sp500.marketPrice * 0.84).toLong(),
+            quantity = 50,
+            targetProfitPct = 12.0,
+            stopLossPct = -6.0,
+        )
+        val profitSignal = EtfAnalyticsEngine.evaluateHoldingSellSignal(profitPos, sp500)
+        assertTrue(
+            profitSignal.action == ExitActionType.PARTIAL_TAKE_PROFIT ||
+                profitSignal.action == ExitActionType.TAKE_PROFIT_NOW,
+        )
+        assertTrue(profitSignal.recommendedSellRatioPct >= 50)
+
+        val lossPos = HoldingPosition(
+            code = sp500.code,
+            name = sp500.name,
+            avgBuyPrice = (sp500.marketPrice * 1.12).toLong(),
+            quantity = 30,
+            targetProfitPct = 12.0,
+            stopLossPct = -6.0,
+        )
+        val lossSignal = EtfAnalyticsEngine.evaluateHoldingSellSignal(lossPos, sp500)
+        assertEquals(ExitActionType.STOP_LOSS_NOW, lossSignal.action)
+        assertEquals(100, lossSignal.recommendedSellRatioPct)
+    }
+
+    @Test
+    fun analyzeHistory_computesValidRsiAndMultiPeriodReturns() {
+        val semi = SampleEtfCatalog.etfs.first { it.code == "381180" }
+        val history = EtfAnalyticsEngine.analyzeHistory(semi)
+        assertTrue(history.rsi14 in 1.0..99.0)
+        assertTrue(history.ma5 > 0.0 && history.ma20 > 0.0 && history.ma60 > 0.0)
+        assertTrue(history.return3M > 0.0)
+        assertTrue(history.winRatePct in 20.0..95.0)
     }
 }

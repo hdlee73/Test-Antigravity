@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,6 +33,7 @@ import io.github.hdlee73.etftracker.ui.common.EditorialCard
 import io.github.hdlee73.etftracker.ui.common.MultiLineChart
 import io.github.hdlee73.etftracker.ui.common.SectionEditorialHeader
 import io.github.hdlee73.etftracker.ui.common.StatusPill
+import io.github.hdlee73.etftracker.ui.common.formatSignedPct
 import io.github.hdlee73.etftracker.ui.theme.WealthColors
 import io.github.hdlee73.etftracker.ui.viewmodel.MainUiState
 import java.util.Locale
@@ -40,6 +42,10 @@ import java.util.Locale
 fun BacktestCorrelationScreen(state: MainUiState) {
     val stressRows = remember(state.etfs) {
         state.etfs.map { EtfAnalyticsEngine.calculateStressTest(it) }
+    }
+    val historySignals = remember(state.etfs) {
+        state.etfs.map { EtfAnalyticsEngine.generateTradingSignal(it) }
+            .sortedByDescending { it.history.return3M }
     }
     val corrMatrix = remember {
         EtfAnalyticsEngine.buildCorrelationMatrix(SampleEtfCatalog.correlationSeries)
@@ -52,10 +58,67 @@ fun BacktestCorrelationScreen(state: MainUiState) {
     ) {
         item {
             SectionEditorialHeader(
-                eyebrow = "Stress Test & Correlation",
-                title = "위기 MDD 회복력 & 상관계수 매트릭스",
-                subtitle = "과거 급락장 최대낙폭(MDD)·원금 회복 기간과 환율/대표지수 상관계수를 분석합니다.",
+                eyebrow = "Historical Trend & Stress Backtest",
+                title = "기간별 추세 히스토리 · MDD 회복력 · 상관계수",
+                subtitle = "전 종목 1개월·3개월·6개월 수익률 추세, 기술적 지표(RSI·이평선), 최대낙폭(MDD) 회복 기간을 비교합니다.",
             )
+        }
+
+        // 전 종목 기간별 히스토리 & 시그널 백테스트 요약 카드
+        item {
+            EditorialCard {
+                Text("전 종목 기간별 추세 & 시그널 백테스트 성적표", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "3개월 수익률 상위순 정렬 · 이동평균선 정배열 여부 및 골든크로스/RSI 전략 과거 승률",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(10.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    historySignals.forEach { sig ->
+                        val h = sig.history
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "${sig.name} (${sig.code})",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                    Text(
+                                        text = "${h.trendStatus} · RSI ${String.format(Locale.US, "%.1f", h.rsi14)} · 변동성 ${String.format(Locale.US, "%.1f", h.volatilityPct)}%",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                StatusPill(
+                                    text = "승률 ${String.format(Locale.US, "%.0f", h.winRatePct)}%",
+                                    containerColor = if (h.winRatePct >= 55.0) WealthColors.EmeraldContainer else WealthColors.ChampagneContainer,
+                                    contentColor = if (h.winRatePct >= 55.0) WealthColors.ForestEmerald else WealthColors.ClassicNavy,
+                                )
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                HistoryReturnBadge("1개월", h.return1M)
+                                HistoryReturnBadge("3개월", h.return3M)
+                                HistoryReturnBadge("6개월(환산)", h.return6M)
+                                HistoryReturnBadge("시그널 누적", h.signalBacktestReturnPct)
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        }
+                    }
+                }
+            }
         }
 
         item {
@@ -159,5 +222,22 @@ fun BacktestCorrelationScreen(state: MainUiState) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HistoryReturnBadge(label: String, pct: Double) {
+    Column {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = formatSignedPct(pct),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (pct >= 0.0) WealthColors.ForestEmerald else WealthColors.DeepCrimson,
+        )
     }
 }

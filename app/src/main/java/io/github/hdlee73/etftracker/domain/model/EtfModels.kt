@@ -1,6 +1,7 @@
 package io.github.hdlee73.etftracker.domain.model
 
 import androidx.compose.runtime.Immutable
+import kotlinx.serialization.Serializable
 
 @Immutable
 data class EtfSummary(
@@ -27,6 +28,7 @@ data class EtfSummary(
     val rocBreakdown: RocBreakdown,
     val dailyPrices: List<Double>,
     val benchmarkPrices: List<Double>,
+    val priceDates: List<String> = emptyList(),
 ) {
     val realCostPct: Double get() = terPct + otherCostPct + brokerageFeePct
     val discrepancyPct: Double
@@ -182,15 +184,78 @@ enum class TradingSignalGrade(val label: String) {
 data class SignalFactor(
     val name: String,
     val score: Int,
+    val maxScore: Int,
     val summary: String,
+)
+
+@Immutable
+data class TechnicalHistoryAnalysis(
+    val rsi14: Double,
+    val ma5: Double,
+    val ma20: Double,
+    val ma60: Double,
+    val return1M: Double,
+    val return3M: Double,
+    val return6M: Double,
+    val volatilityPct: Double,
+    val mddPct: Double,
+    val trendStatus: String,
+    val winRatePct: Double,
+    val signalBacktestReturnPct: Double,
 )
 
 @Immutable
 data class TradingSignalResult(
     val code: String,
     val name: String,
+    val manager: String,
+    val marketPrice: Long,
+    val dailyChangePct: Double,
     val grade: TradingSignalGrade,
     val totalScore: Int,
+    val entryPriceWon: Long,
+    val targetPriceWon: Long,
+    val stopLossPriceWon: Long,
+    val expectedUpsidePct: Double,
     val targetActionText: String,
     val factors: List<SignalFactor>,
+    val history: TechnicalHistoryAnalysis,
+)
+
+@Serializable
+@Immutable
+data class HoldingPosition(
+    val code: String,
+    val name: String,
+    val avgBuyPrice: Long,
+    val quantity: Int,
+    val targetProfitPct: Double = 12.0,
+    val stopLossPct: Double = -6.0,
+    val highestPriceSinceBuy: Long = avgBuyPrice,
+)
+
+enum class ExitActionType(val label: String) {
+    TAKE_PROFIT_NOW("즉시 익절 매도"),
+    PARTIAL_TAKE_PROFIT("50% 분할 익절"),
+    TRAILING_STOP_SELL("고점 꺾임 · 추세이탈 매도"),
+    STOP_LOSS_NOW("손절선 도달 · 즉시 매도"),
+    OVERHEAT_TRIM("iNAV 할증 과열 · 고점 매도"),
+    ADD_ON_DIP("눌림목 추가 매수"),
+    HOLD_POSITION("보유 유지 (추세 순항)"),
+}
+
+@Immutable
+data class HoldingSellSignal(
+    val position: HoldingPosition,
+    val currentPrice: Long,
+    val pnlPct: Double,
+    val pnlAmountWon: Long,
+    val drawdownFromHighPct: Double,
+    val action: ExitActionType,
+    val urgencyScore: Int,
+    val recommendedSellRatioPct: Int,
+    val nextTrailingStopPrice: Long,
+    val nextTargetPrice: Long,
+    val headline: String,
+    val reasonDetail: String,
 )

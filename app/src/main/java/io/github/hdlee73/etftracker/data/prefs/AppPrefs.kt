@@ -6,6 +6,10 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import io.github.hdlee73.etftracker.BuildConfig
 import io.github.hdlee73.etftracker.data.log.CrashLogger
+import io.github.hdlee73.etftracker.data.repo.SampleEtfCatalog
+import io.github.hdlee73.etftracker.domain.model.HoldingPosition
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -14,14 +18,12 @@ import javax.crypto.spec.GCMParameterSpec
 
 class AppPrefs(context: Context) {
     private val prefs = context.getSharedPreferences("etf_tracker_prefs", Context.MODE_PRIVATE)
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     var apiBaseUrl: String
         get() = prefs.getString(KEY_API_URL, BuildConfig.API_BASE_URL).orEmpty().ifBlank { BuildConfig.API_BASE_URL }
         set(value) = prefs.edit().putString(KEY_API_URL, value.trim().trimEnd('/')).apply()
 
-    /**
-     * APK에 토큰을 내장하지 않고, 사용자가 입력한 값을 Android Keystore(AES-256-GCM)로 암호화해 보관한다.
-     */
     var appToken: String
         get() {
             val encoded = prefs.getString(KEY_APP_TOKEN_ENC, null)
@@ -47,21 +49,45 @@ class AppPrefs(context: Context) {
         }
 
     var selectedEtfCode: String
-        get() = prefs.getString(KEY_SELECTED_ETF, "069500").orEmpty().ifBlank { "069500" }
+        get() = prefs.getString(KEY_SELECTED_ETF, "360750").orEmpty().ifBlank { "360750" }
         set(value) = prefs.edit().putString(KEY_SELECTED_ETF, value).apply()
 
     var compareCodes: List<String>
-        get() = prefs.getString(KEY_COMPARE_CODES, "069500,360750,458730")
+        get() = prefs.getString(KEY_COMPARE_CODES, "360750,496120,091180")
             .orEmpty()
             .split(",")
             .map { it.trim() }
             .filter { it.isNotBlank() }
-            .ifEmpty { listOf("069500", "360750", "458730") }
+            .ifEmpty { listOf("360750", "496120", "091180") }
         set(value) = prefs.edit().putString(KEY_COMPARE_CODES, value.take(4).joinToString(",")).apply()
 
     var removedEtfCodes: Set<String>
         get() = prefs.getStringSet(KEY_REMOVED_ETFS, emptySet()).orEmpty()
         set(value) = prefs.edit().putStringSet(KEY_REMOVED_ETFS, value).apply()
+
+    /**
+     * 사용자가 검색해서 관심종목으로 추가 저장한 ETF 코드 목록.
+     */
+    var savedWatchlistCodes: Set<String>
+        get() = prefs.getStringSet(KEY_SAVED_WATCHLIST, emptySet()).orEmpty()
+        set(value) = prefs.edit().putStringSet(KEY_SAVED_WATCHLIST, value).apply()
+
+    /**
+     * 사용자가 보유 중인 ETF 포지션(평단가·수량·목표수익률·손절선) 목록.
+     */
+    var holdings: List<HoldingPosition>
+        get() {
+            val raw = prefs.getString(KEY_HOLDINGS_JSON, null)
+            if (raw.isNullOrBlank()) return SampleEtfCatalog.defaultHoldings
+            return runCatching {
+                json.decodeFromString<List<HoldingPosition>>(raw)
+            }.getOrDefault(SampleEtfCatalog.defaultHoldings)
+        }
+        set(value) {
+            runCatching {
+                prefs.edit().putString(KEY_HOLDINGS_JSON, json.encodeToString(value)).apply()
+            }
+        }
 
     private fun getOrCreateKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
@@ -115,5 +141,7 @@ class AppPrefs(context: Context) {
         private const val KEY_SELECTED_ETF = "selected_etf"
         private const val KEY_COMPARE_CODES = "compare_codes"
         private const val KEY_REMOVED_ETFS = "removed_etfs"
+        private const val KEY_SAVED_WATCHLIST = "saved_watchlist"
+        private const val KEY_HOLDINGS_JSON = "holdings_json"
     }
 }
