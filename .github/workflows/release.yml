@@ -51,6 +51,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           API_BASE_URL: ${{ vars.API_BASE_URL }}
+          APP_TOKEN: ${{ secrets.APP_TOKEN }}
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Prepare release files

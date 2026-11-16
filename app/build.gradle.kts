@@ -15,13 +15,14 @@ android {
         applicationId = "io.github.hdlee73.etftracker"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
 
         buildConfigField("String", "API_BASE_URL", "\"${env("API_BASE_URL").trimEnd('/')}\"")
+        buildConfigField("String", "APP_TOKEN", "\"${env("APP_TOKEN")}\"")
         buildConfigField("String", "AUTHOR_NAME", "\"이현덕 with AI\"")
         buildConfigField("String", "AUTHOR_EMAIL", "\"hdlee73@gmail.com\"")
         buildConfigField("String", "AUTHOR_HOMEPAGE", "\"https://hdlee73.github.io/Home/\"")

@@ -24,9 +24,12 @@ class AppPrefs(context: Context) {
      */
     var appToken: String
         get() {
-            val encoded = prefs.getString(KEY_APP_TOKEN_ENC, null) ?: return ""
-            val ivBase64 = prefs.getString(KEY_APP_TOKEN_IV, null) ?: return ""
-            return decrypt(encoded, ivBase64).orEmpty()
+            val encoded = prefs.getString(KEY_APP_TOKEN_ENC, null)
+            val ivBase64 = prefs.getString(KEY_APP_TOKEN_IV, null)
+            if (encoded != null && ivBase64 != null) {
+                return decrypt(encoded, ivBase64).orEmpty().ifBlank { BuildConfig.APP_TOKEN }
+            }
+            return BuildConfig.APP_TOKEN
         }
         set(value) {
             val trimmed = value.trim()
